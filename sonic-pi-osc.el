@@ -91,16 +91,36 @@
   (hlt-highlight-regexp-region nil nil ".+" 'eval-sonic-pi-flash nil)
   (run-at-time flash-time nil 'hlt-unhighlight-region))
 
+(defun sonic-pi--send (region)
+  "Helper function to send and highlighting region."
+  (cl-destructuring-bind (start end) region
+    (sonic-pi-osc-send-text start end)
+    (hlt-highlight-regexp-region start end ".+" 'eval-sonic-pi-flash nil))
+  (run-at-time flash-time nil 'hlt-unhighlight-region nil nil nil))
+
 (defun sonic-pi-send-live-loop ()
   "send a live-loop to sonic via osc"
   (interactive)
-  (save-excursion
-    (let ((s (re-search-backward "^\\(live_loop\\|with_fx\\)")))
-      (ruby-end-of-block)
-      (end-of-line)
-      (sonic-pi-osc-send-text s (point))
-      (hlt-highlight-regexp-region s (point) ".+" 'eval-sonic-pi-flash nil))
-    (run-at-time flash-time nil 'hlt-unhighlight-region nil nil nil)))
+  (sonic-pi--send (sonic-pi--live-loop-region)))
+
+(defun sonic-pi-smart-send ()
+  "If region is active, send it,
+else if there is an enclosing `live_loop' or `with_fx' send it,
+else send current line."
+  (interactive)
+  (sonic-pi--send (sonic-pi--smart-region)))
+
+(defun sonic-pi--smart-region ()
+  "Find region for smart-send command."
+  (if (region-active-p)
+      (list (region-beginning) (region-end))
+    (or (sonic-pi--live-loop-region)
+        (list (line-beginning-position) (line-end-position)))))
+
+(defun sonic-pi--live-loop-region ()
+  "Find region with `live_loop' or `with_fx'."
+  (when-let (start (save-excursion (re-search-backward "^\\(live_loop\\|with_fx\\)" nil t)))
+      (list start (save-excursion (ruby-end-of-block) (line-end-position)))))
 
 (defun sonic-pi-osc-make-client (host port)
   (make-network-process
