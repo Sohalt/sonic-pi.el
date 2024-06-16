@@ -5,7 +5,7 @@
 ;; Author: Joseph Wilk <joe@josephwilk.net>
 ;; URL: http://www.github.com/repl-electric/sonic-pi.el
 ;; Version: 0.1.0
-;; Package-Requires: ((cl-lib "0.5") (osc "0.1") (dash "2.2.0") (emacs "24") (highlight "0"))
+;; Package-Requires: ((cl-lib "0.5") (dash "2.2.0") (emacs "24") (highlight "0"))
 ;; Keywords: SonicPi, Ruby
 
 ;; This program is free software: you can redistribute it and/or modify
@@ -29,9 +29,8 @@
 
 ;;  M-x package-install sonic-pi
 ;;
-;; ;;Set the location of your sonic-pi install
-;; (setq sonic-pi-path \"YOUR_INSTALL_OF_SONIC_PI\")
-
+;;  You need to have sonic-pi-tool installed and on your PATH
+;;
 ;;; Usage:
 
 ;; M-x sonic-pi-jack-in
@@ -46,39 +45,51 @@
   :link '(emacs-commentary-link :tag "Commentary" "Sonic Pi for Emacs"))
 
 (require 'sonic-pi-mode)
-(require 'sonic-pi-osc)
+(require 'sonic-pi-tool)
 
-(defcustom sonic-pi-path
-  nil
-  "Path to install of sonicpi"
-  :type 'string
-  :group 'sonic-pi)
-
-(defvar sonic-pi-server-bin             "bin/sonic-pi-server")
-(defvar sonic-pi-compile-extensions-bin "server/bin/compile-extensions.rb")
 (defvar sonic-pi-margin-size 1)
 
-(defun sonic-pi-server-cmd () (format "%s%s" sonic-pi-path sonic-pi-server-bin))
+(defconst sonic-pi-message-buffer-name "*sonic-pi-messages*")
+(defcustom sonic-pi-log-messages t
+  "If non-nil, log protocol messages to the `sonic-pi-message-buffer-name' buffer."
+  :type 'boolean
+  :group 'sonic)
 
-(defun sonic-pi--ruby-present-p ()
-  "Check ruby is on the executable path"
-  (executable-find "ruby"))
+(defvar sonic-pi-tool-cmd "sonic-pi-tool")
+(defun sonic-pi-server-cmd () (format "%s start-server" sonic-pi-tool-cmd))
+(defun sonic-pi-logs-cmd () (format "%s logs" sonic-pi-tool-cmd))
 
-(defun sonic-pi--sonic-pi-server-present-p ()
+(defun sonic-pi--sonic-pi-tool-present-p ()
   "Check sonic-pi server exists"
-  (file-exists-p (format "%s/%s" sonic-pi-path sonic-pi-server-bin)))
+  (executable-find "sonic-pi-tool"))
 
 (defun sonic-pi-valid-setup-p ()
   (cond
-   ((not sonic-pi-path) (progn (message "No sonic-pi-path set! Did you forget (setq sonic-pi-path \"YOUR_INSTALL_OF_SONIC_PI\")")) nil)
-   ((not (sonic-pi--sonic-pi-server-present-p)) (progn (message (format "Could not find a sonic-pi server in: %s" sonic-pi-path)) nil))
-   ((not (sonic-pi--ruby-present-p)) (progn (message "Could not find a ruby (1.9.3+) executable to run SonicPi") nil))
-   ((and sonic-pi-path (sonic-pi--sonic-pi-server-present-p) (sonic-pi--ruby-present-p)) t)
+   ((not (sonic-pi--sonic-pi-tool-present-p)) (progn (message "Could not find a sonic-pi-tool on PATH") nil))
+   ((sonic-pi--sonic-pi-tool-present-p) t)
    (t nil)))
+
+(defun sonic-pi-messages-buffer-init ()
+  (when sonic-pi-log-messages
+    (when (get-buffer sonic-pi-message-buffer-name)
+      (with-current-buffer
+          sonic-pi-message-buffer-name
+        (erase-buffer)))
+    (start-file-process-shell-command
+     "sonic-pi-logs"
+     sonic-pi-message-buffer-name
+     ;;FIXME properly wait for sonic pi to start
+     (format "sleep 5;%s"(sonic-pi-logs-cmd)))
+    (display-buffer sonic-pi-message-buffer-name)))
 
 (defun sonic-pi-sonic-server-cleanup ()
   (when (get-process "sonic-pi-server")
     (delete-process "sonic-pi-server")))
+
+(defun sonic-pi-messages-buffer-cleanup ()
+  (when (get-process "sonic-pi-logs")
+    (delete-process "sonic-pi-logs")))
+
 
 ;;;###autoload
 (defun sonic-pi-jack-in (&optional prompt-project)
@@ -86,12 +97,12 @@
   (interactive)
   (when (sonic-pi-valid-setup-p)
     (if (not (get-process "sonic-pi-server"))
-        (let* ((cmd (sonic-pi-server-cmd)))
+        (progn
           (message "Starting SonicPi server...")
           (start-file-process-shell-command
            "sonic-pi-server"
            "*sonic-pi-server-messages*"
-           cmd)))
+           (sonic-pi-server-cmd))))
     (set-window-margins (get-buffer-window) sonic-pi-margin-size)
     (sonic-pi-connect)
     (message "Ready!")))
@@ -101,7 +112,6 @@
   "Assumes SonicPi server is running and connects"
   (interactive)
   (when (sonic-pi-valid-setup-p)
-    (sonic-pi-osc-connect)
     (sonic-pi-messages-buffer-init)))
 
 (provide 'sonic-pi)

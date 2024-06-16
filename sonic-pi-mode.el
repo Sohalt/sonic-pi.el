@@ -1,20 +1,16 @@
 ;;; sonic-pi-mode.el --- Minor mode for SonicPi interactions -*- lexical-binding: t -*-
 
-(require 'sonic-pi-osc)
+(require 'sonic-pi-tool)
 
 (defun sonic-pi-quit ()
   "Shutdown SonicPi"
   (interactive)
-  (sonic-pi-osc-cleanup)
   (sonic-pi-messages-buffer-cleanup)
   (sonic-pi-sonic-server-cleanup))
 
 (defun sonic-pi-restart         () (interactive) (sonic-pi-quit) (sonic-pi-jack-in))
-(defun sonic-pi-stop-all        () (interactive) (sonic-pi-osc-send-command "stop-all-jobs"))
-(defun sonic-pi-start-recording () (interactive) (sonic-pi-osc-send-command "start-recording"))
-(defun sonic-pi-stop-recording  (filename) (interactive "FSave to:")
-  (sonic-pi-osc-send-command "stop-recording")
-  (sonic-pi-osc-send-command-with-arg "save-recording" (buffer-name) filename))
+(defun sonic-pi-stop-all        () (interactive) (sonic-pi-tool-command "stop"))
+(defun sonic-pi-start-recording (filename) (interactive "FSave to:") (sonic-pi-tool-command (format "record %s" filename)))
 
 (defvar sonic-pi-mode-map
   (let ((map (make-sparse-keymap)))
