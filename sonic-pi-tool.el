@@ -17,12 +17,12 @@
   "Face for highlighting sexps signaled errors during evaluation."
   :group 'eval-sonic-pi)
 
-(defun sonic-pi-tool-command (cmd)
-  (shell-command (format "sonic-pi-tool %s" cmd)))
+(defun sonic-pi-tool-command (cmd &rest args)
+  (apply 'start-process "sonic-pi-tool" nil "sonic-pi-tool" cmd args))
 
 (defun sonic-pi-eval-text (start end)
   "Evaluate text between start and end position in the current buffer."
-  (sonic-pi-tool-command (format "eval \"%s\"" (buffer-substring-no-properties start end))))
+  (sonic-pi-tool-command "eval" (buffer-substring-no-properties start end)))
 
 (defun sonic-pi-send-file ()
   "Evaluate contents of file of current buffer."
